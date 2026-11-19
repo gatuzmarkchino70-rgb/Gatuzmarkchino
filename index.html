@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioLink Studio — Custom Link-in-Bio Creator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.460.0/lucide.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white overflow-x-hidden">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Top Navigation Bar (Hidden in Full Preview Mode, replaced by floating exit button) -->
+    <header id="studio-header" class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg tracking-tight text-white leading-none">BioLink Studio</h1>
+                    <p class="text-[11px] text-slate-400 mt-0.5">solo.to inspired page builder</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button onclick="resetToDefaults()" class="p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/70 transition flex items-center gap-1.5" title="Reset to default template">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Reset</span>
+                </button>
+
+                <button onclick="togglePreviewMode()" id="preview-toggle-btn" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition flex items-center gap-2 shadow-sm">
+                    <i data-lucide="eye" class="w-4 h-4 text-indigo-400"></i>
+                    <span>Preview Mode</span>
+                </button>
+
+                <button onclick="exportStandaloneHTML()" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/25 transition flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    <span>Export HTML</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Preview Link Bar -->
+        <div class="max-w-7xl mx-auto mt-3 flex items-stretch bg-white border border-slate-200 rounded-md overflow-hidden">
+            <button id="share-link-btn" type="button" onclick="openPreviewLink()" class="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition" title="Open preview page">
+                <span id="share-link-label" class="truncate text-base sm:text-lg font-medium" style="color:#4a6ee0">preview/my-page</span>
+                <svg class="w-5 h-5 shrink-0 text-slate-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+            </button>
+            <input type="url" id="share-url-input" placeholder="Paste your live link, then press Enter" class="hidden flex-1 min-w-0 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none" onkeydown="if(event.key==='Enter'){toggleShareEdit(false)}" onblur="toggleShareEdit(false)">
+            <button type="button" onclick="toggleShareEdit(true)" class="px-3.5 border-l border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition flex items-center" title="Set your live link">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating Exit Preview Button (Visible only when Editor is hidden) -->
+    <button id="exit-preview-btn" onclick="togglePreviewMode()" class="hidden fixed top-5 right-5 z-50 px-4 py-2.5 rounded-full bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-md border border-white/15 shadow-2xl text-xs sm:text-sm font-semibold flex items-center gap-2 transition transform hover:scale-105">
+        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-indigo-400"></i>
+        <span>Customize Page</span>
+    </button>
+
+    <!-- Main Workspace Layout -->
+    <main id="workspace" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 min-h-[calc(100vh-65px)]">
+
+        <!-- LEFT COLUMN: Interactive Customization Panel -->
+        <aside id="editor-panel" class="lg:col-span-5 xl:col-span-5 bg-slate-900/60 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 sm:p-6 overflow-y-auto lg:max-h-[calc(100vh-65px)] space-y-6">
+
+            <!-- Editor Navigation Tabs -->
+            <div class="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-950/90 rounded-2xl border border-slate-800/80">
+                <button onclick="switchTab('profile')" id="tab-btn-profile" class="tab-btn active-tab py-2 px-2 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition bg-indigo-600 text-white shadow">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                    <span>Profile</span>
+                </button>
+                <button onclick="switchTab('links')" id="tab-btn-links" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition text-slate-400 hover:text-white hover:bg-slate-800/60">
+                    <i data-lucide="link" class="w-4 h-4"></i>
+                    <span>Links</span>
+                </button>
+                <button onclick="switchTab('background')" id="tab-btn-background" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition text-slate-400 hover:text-white hover:bg-slate-800/60">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                    <span>Background</span>
+                </button>
+                <button onclick="switchTab('buttons')" id="tab-btn-buttons" class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition text-slate-400 hover:text-white hover:bg-slate-800/60">
+                    <i data-lucide="palette" class="w-4 h-4"></i>
+                    <span>Style</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: PROFILE SETTINGS -->
+            <section id="tab-profile" class="tab-content space-y-5">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                        <i data-lucide="user-circle" class="w-4 h-4 text-indigo-400"></i>
+                        Identity & Bio
+                    </h2>
+
+                    <!-- Avatar Upload & URL -->
+                    <div class="space-y-3">
+                        <label class="block text-xs font-medium text-slate-400">Profile Picture</label>
+                        <div class="flex items-center gap-4">
+                            <img id="editor-avatar-preview" src="" alt="Avatar Preview" class="w-16 h-16 rounded-full object-cover border-2 border-indigo-500/50 bg-slate-800 shrink-0" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9Ijk1IiByPSI0MCIgZmlsbD0iIzQ3NTU2OSIvPjxlbGxpcHNlIGN4PSIxMjAiIGN5PSIyMDUiIHJ4PSI3MCIgcnk9IjU1IiBmaWxsPSIjNDc1NTY5Ii8+PC9zdmc+'">
+                            <div class="flex-1 space-y-2">
+                                <label class="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white border border-slate-700 transition">
+                                    <i data-lucide="upload" class="w-3.5 h-3.5 text-indigo-400"></i>
+                                    <span>Upload Photo</span>
+                                    <input type="file" id="avatar-file-input" accept="image/*" class="hidden" onchange="handleImageUpload(event, 'avatar')">
+                                </label>
+                                <input type="url" id="input-avatar-url" placeholder="Or paste image URL..." class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" oninput="updateProfile('avatarUrl', this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Display Name -->
+                    <div class="space-y-1.5">
+                        <label for="input-name" class="block text-xs font-medium text-slate-400">Display Name / Handle</label>
+                        <input type="text" id="input-name" placeholder="e.g. Alex Rivera" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" oninput="updateProfile('name', this.value)">
+                    </div>
+
+                    <!-- Verified Badge Toggle -->
+                    <div class="flex items-center justify-between pt-1">
+                        <div>
+                            <span class="text-xs font-medium text-slate-300">Verified Checkmark</span>
+                            <p class="text-[11px] text-slate-500">Show a sleek badge beside your name</p>
+                        </div>
+                        <button type="button" id="toggle-verified" onclick="toggleVerifiedBadge()" class="w-11 h-6 rounded-full bg-indigo-600 p-0.5 transition-colors duration-200 flex items-center">
+                            <span id="toggle-verified-dot" class="w-5 h-5 rounded-full bg-white shadow transform translate-x-5 transition-transform duration-200"></span>
+                        </button>
+                    </div>
+
+                    <!-- Bio / Subtitle -->
+                    <div class="space-y-1.5">
+                        <label for="input-bio" class="block text-xs font-medium text-slate-400">Bio / Subtitle</label>
+                        <textarea id="input-bio" rows="3" placeholder="Tell visitors who you are..." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition resize-none" oninput="updateProfile('bio', this.value)"></textarea>
+                    </div>
+
+                    <!-- Profile Text Color -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-medium text-slate-400">Header Text Color</label>
+                        <div class="flex items-center gap-2.5">
+                            <input type="color" id="input-text-color" class="w-10 h-10 rounded-xl bg-transparent border-0 cursor-pointer" oninput="updateProfile('textColor', this.value)">
+                            <div class="flex gap-1.5">
+                                <button onclick="setProfileTextColor('#ffffff')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white border border-slate-700">Pure White</button>
+                                <button onclick="setProfileTextColor('#0f172a')" class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-white text-xs font-medium text-slate-900">Dark Slate</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: CUSTOM LINKS MANAGER -->
+            <section id="tab-links" class="tab-content hidden space-y-5">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                            <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i>
+                            Your Links
+                        </h2>
+                        <button onclick="addNewLink()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Add Link</span>
+                        </button>
+                    </div>
+
+                    <p class="text-xs text-slate-400">Add social profiles, websites, or contact links. Reorder using the up/down arrows.</p>
+
+                    <!-- Dynamic Links Editor List -->
+                    <div id="links-editor-list" class="space-y-3">
+                        <!-- Rendered via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: BACKGROUND CUSTOMIZATION -->
+            <section id="tab-background" class="tab-content hidden space-y-5">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                        <i data-lucide="wallpaper" class="w-4 h-4 text-indigo-400"></i>
+                        Page Background
+                    </h2>
+
+                    <!-- Background Mode Selector -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setBackgroundType('gradient')" id="bg-type-gradient" class="bg-type-btn py-2.5 px-3 rounded-xl text-xs font-semibold border border-indigo-500 bg-indigo-500/15 text-indigo-300 transition">
+                            Gradients
+                        </button>
+                        <button onclick="setBackgroundType('solid')" id="bg-type-solid" class="bg-type-btn py-2.5 px-3 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                            Solid Color
+                        </button>
+                        <button onclick="setBackgroundType('image')" id="bg-type-image" class="bg-type-btn py-2.5 px-3 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                            Custom Image
+                        </button>
+                    </div>
+
+                    <!-- Option A: Aesthetic Gradients -->
+                    <div id="bg-controls-gradient" class="space-y-3">
+                        <label class="block text-xs font-medium text-slate-400">Curated Aesthetic Gradients</label>
+                        <div id="gradient-presets" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            <!-- Rendered via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Option B: Solid Color Picker -->
+                    <div id="bg-controls-solid" class="hidden space-y-3">
+                        <label class="block text-xs font-medium text-slate-400">Pick Solid Background Color</label>
+                        <div class="flex items-center gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                            <input type="color" id="input-bg-color" class="w-12 h-12 rounded-xl cursor-pointer bg-transparent border-0" oninput="updateBackground('solidColor', this.value)">
+                            <div>
+                                <p id="solid-color-hex" class="text-sm font-mono font-semibold text-white uppercase">#0F172A</p>
+                                <p class="text-[11px] text-slate-400">Click swatch to choose any color</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Option C: Custom Image Upload or URL -->
+                    <div id="bg-controls-image" class="hidden space-y-3">
+                        <label class="block text-xs font-medium text-slate-400">Upload Wallpaper or Enter Image URL</label>
+                        <div class="space-y-2.5">
+                            <label class="w-full cursor-pointer flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 text-xs font-medium text-slate-200 transition">
+                                <i data-lucide="image-plus" class="w-4 h-4 text-indigo-400"></i>
+                                <span>Upload Background Image</span>
+                                <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event, 'background')">
+                            </label>
+                            <input type="url" id="input-bg-image-url" placeholder="https://example.com/wallpaper.jpg" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition" oninput="updateBackground('imageUrl', this.value)">
+                        </div>
+
+                        <!-- Quick Sample Wallpapers -->
+                        <div class="pt-1">
+                            <span class="block text-[11px] text-slate-500 mb-2">Or try a curated wallpaper (works offline):</span>
+                            <div id="wallpaper-presets" class="grid grid-cols-4 gap-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- Readability Filters: Blur & Dark Overlay -->
+                    <div class="pt-3 border-t border-slate-800 space-y-4">
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="font-medium text-slate-300">Background Blur</span>
+                                <span id="blur-value-label" class="font-mono text-indigo-400">0px</span>
+                            </div>
+                            <input type="range" id="input-bg-blur" min="0" max="24" step="1" value="0" class="w-full accent-indigo-500 cursor-pointer" oninput="updateBackground('blur', this.value)">
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="font-medium text-slate-300">Dark Overlay Opacity</span>
+                                <span id="overlay-value-label" class="font-mono text-indigo-400">25%</span>
+                            </div>
+                            <input type="range" id="input-bg-overlay" min="0" max="85" step="5" value="25" class="w-full accent-indigo-500 cursor-pointer" oninput="updateBackground('overlay', this.value)">
+                            <p class="text-[11px] text-slate-500">Increase overlay darkness so bright wallpapers don't wash out text.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: BUTTON STYLING CONTROLS -->
+            <section id="tab-buttons" class="tab-content hidden space-y-5">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-5">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-indigo-400"></i>
+                        Button Appearance
+                    </h2>
+
+                    <!-- Button Shape -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-slate-400">Corner Shape</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="updateButtonStyle('shape', 'rounded')" id="btn-shape-rounded" class="btn-shape-opt py-2.5 px-3 rounded-xl text-xs font-semibold border border-indigo-500 bg-indigo-500/15 text-indigo-300 transition">
+                                Rounded
+                            </button>
+                            <button onclick="updateButtonStyle('shape', 'pill')" id="btn-shape-pill" class="btn-shape-opt py-2.5 px-3 rounded-full text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                                Pill
+                            </button>
+                            <button onclick="updateButtonStyle('shape', 'square')" id="btn-shape-square" class="btn-shape-opt py-2.5 px-3 rounded-none text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                                Sharp
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Button Surface Style -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-slate-400">Surface Material</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="updateButtonStyle('variant', 'glass')" id="btn-variant-glass" class="btn-variant-opt py-2.5 px-3 rounded-xl text-xs font-semibold border border-indigo-500 bg-indigo-500/15 text-indigo-300 transition">
+                                Frosted Glass
+                            </button>
+                            <button onclick="updateButtonStyle('variant', 'solid')" id="btn-variant-solid" class="btn-variant-opt py-2.5 px-3 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                                Solid Fill
+                            </button>
+                            <button onclick="updateButtonStyle('variant', 'outline')" id="btn-variant-outline" class="btn-variant-opt py-2.5 px-3 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                                Outline
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Button Colors -->
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-slate-400">Button Color</label>
+                            <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                                <input type="color" id="input-btn-bg" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0" oninput="updateButtonStyle('bgColor', this.value)">
+                                <span id="btn-bg-hex" class="text-xs font-mono text-slate-300 uppercase">#FFFFFF</span>
+                            </div>
+                        </div>
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-medium text-slate-400">Button Text</label>
+                            <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
+                                <input type="color" id="input-btn-text" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0" oninput="updateButtonStyle('textColor', this.value)">
+                                <span id="btn-text-hex" class="text-xs font-mono text-slate-300 uppercase">#FFFFFF</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hover Animation Style -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-medium text-slate-400">Hover Effect</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="updateButtonStyle('hover', 'lift')" id="btn-hover-lift" class="btn-hover-opt py-2 px-3 rounded-xl text-xs font-semibold border border-indigo-500 bg-indigo-500/15 text-indigo-300 transition">
+                                Smooth Lift & Scale
+                            </button>
+                            <button onclick="updateButtonStyle('hover', 'glow')" id="btn-hover-glow" class="btn-hover-opt py-2 px-3 rounded-xl text-xs font-semibold border border-slate-800 bg-slate-950 text-slate-400 hover:text-white transition">
+                                Luminous Glow
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </aside>
+
+        <!-- RIGHT COLUMN: Live Bio Page Canvas -->
+        <section id="preview-stage" class="lg:col-span-7 xl:col-span-7 relative flex items-center justify-center p-4 sm:p-8 lg:p-10 bg-slate-950 overflow-hidden">
+
+            <!-- Device Frame Wrapper (Expands to full screen in Preview Mode) -->
+            <div id="preview-frame" class="relative w-full max-w-md mx-auto rounded-[2.25rem] overflow-hidden shadow-2xl border border-white/10 min-h-[660px] flex flex-col transition-all duration-300">
+
+                <!-- Background Layer (Image / Gradient / Solid + Blur) -->
+                <div id="live-bg-layer" class="absolute inset-0 bg-cover bg-center transition-all duration-300 scale-105"></div>
+
+                <!-- Dark Overlay Layer for Contrast -->
+                <div id="live-overlay-layer" class="absolute inset-0 bg-black transition-opacity duration-300"></div>
+
+                <!-- Scrollable Bio Content Container -->
+                <div class="relative z-10 flex-1 flex flex-col items-center justify-between px-6 py-12 sm:px-8">
+
+                    <div class="w-full max-w-md mx-auto flex flex-col items-center text-center">
+                        <!-- Profile Avatar -->
+                        <div class="relative mb-4 group">
+                            <img id="live-avatar" src="" alt="Profile Avatar" class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-xl ring-4 ring-white/20 transition-transform duration-300 group-hover:scale-105" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9Ijk1IiByPSI0MCIgZmlsbD0iIzQ3NTU2OSIvPjxlbGxpcHNlIGN4PSIxMjAiIGN5PSIyMDUiIHJ4PSI3MCIgcnk9IjU1IiBmaWxsPSIjNDc1NTY5Ii8+PC9zdmc+'">
+                        </div>
+
+                        <!-- Display Name + Verified Badge -->
+                        <div class="flex items-center justify-center gap-1.5 mb-2">
+                            <h1 id="live-name" class="text-xl sm:text-2xl font-extrabold tracking-tight"></h1>
+                            <span id="live-verified-badge" class="inline-flex items-center justify-center text-sky-400" title="Verified">
+                                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z"/>
+                                </svg>
+                            </span>
+                        </div>
+
+                        <!-- Bio / Subtitle -->
+                        <p id="live-bio" class="text-sm sm:text-[15px] opacity-90 max-w-xs sm:max-w-sm leading-relaxed mb-8 whitespace-pre-line"></p>
+
+                        <!-- Rendered Links Stack -->
+                        <div id="live-links-container" class="w-full space-y-3.5">
+                            <!-- Rendered via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Subtle Footer Branding -->
+                    <footer class="mt-12 pt-4 text-center">
+                        <span id="live-footer-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-black/25 backdrop-blur-md text-white/75 border border-white/10">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i>
+                            <span>solo.bio</span>
+                        </span>
+                    </footer>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        /**
+         * Platform definitions with display labels, brand colors, and inline SVG icons
+         * (Used both in live preview and standalone exported HTML so icons never break offline)
+         */
+        const PLATFORMS = {
+            website: {
+                label: 'Website / Portfolio',
+                color: '#6366f1',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+            },
+            instagram: {
+                label: 'Instagram',
+                color: '#E1306C',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>'
+            },
+            facebook: {
+                label: 'Facebook',
+                color: '#1877F2',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>'
+            },
+            tiktok: {
+                label: 'TikTok',
+                color: '#00f2fe',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>'
+            },
+            youtube: {
+                label: 'YouTube',
+                color: '#FF0000',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>'
+            },
+            twitter: {
+                label: 'X / Twitter',
+                color: '#1DA1F2',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>'
+            },
+            discord: {
+                label: 'Discord',
+                color: '#5865F2',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M7.5 7.5c3.5-1 5.5-1 9 0"/><path d="M7 16.5c3.5 1 6.5 1 10 0"/><path d="M15.5 17c0 1 1.5 3 2 3c1.5 0 2.833-1.667 3.5-3c.667-1.667.5-5.833-1.5-11.5c-1.457-1.015-3-1.34-4.5-1.5l-1 2.5"/><path d="M8.5 17c0 1-1.356 3-1.832 3c-1.429 0-2.698-1.667-3.333-3c-.635-1.667-.476-5.833 1.428-11.5C6.151 4.485 7.545 4.16 9 4l1 2.5"/></svg>'
+            },
+            telegram: {
+                label: 'Telegram',
+                color: '#26A5E4',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>'
+            },
+            github: {
+                label: 'GitHub',
+                color: '#f8fafc',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>'
+            },
+            spotify: {
+                label: 'Spotify / Music',
+                color: '#1DB954',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14.5c2.5-1 5.5-1 8 0"/><path d="M7 11.5c3.5-1.5 7.5-1.5 11 0"/><path d="M6.5 8.5c4-1.5 8.5-1.5 12.5 0"/></svg>'
+            },
+            email: {
+                label: 'Email',
+                color: '#f59e0b',
+                svg: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>'
+            }
+        };
+
+        /**
+         * Curated Gradient Presets
+         */
+        const GRADIENT_PRESETS = [
+            { id: 'midnight-aurora', name: 'Midnight Aurora', css: 'linear-gradient(135deg, #0f172a 0%, #311042 50%, #1e1b4b 100%)' },
+            { id: 'sunset-vibes', name: 'Sunset Glow', css: 'linear-gradient(135deg, #f97316 0%, #db2777 50%, #4c1d95 100%)' },
+            { id: 'ocean-deep', name: 'Abyssal Ocean', css: 'linear-gradient(135deg, #0284c7 0%, #1e3a8a 55%, #090d16 100%)' },
+            { id: 'emerald-mist', name: 'Emerald Mist', css: 'linear-gradient(135deg, #064e3b 0%, #0f766e 50%, #022c22 100%)' },
+            { id: 'cotton-candy', name: 'Pastel Dream', css: 'linear-gradient(135deg, #c084fc 0%, #f472b6 50%, #60a5fa 100%)' },
+            { id: 'obsidian', name: 'Obsidian Noir', css: 'linear-gradient(135deg, #18181b 0%, #27272a 50%, #09090b 100%)' },
+            { id: 'rose-gold', name: 'Rose Gold', css: 'linear-gradient(135deg, #fda4af 0%, #fb7185 45%, #9f1239 100%)' },
+            { id: 'peach-fuzz', name: 'Peach Fizz', css: 'linear-gradient(135deg, #fed7aa 0%, #fb923c 50%, #ea580c 100%)' },
+            { id: 'lavender-haze', name: 'Lavender Haze', css: 'linear-gradient(135deg, #e9d5ff 0%, #a78bfa 50%, #6d28d9 100%)' },
+            { id: 'mint-fresh', name: 'Mint Fresh', css: 'linear-gradient(135deg, #a7f3d0 0%, #34d399 50%, #0d9488 100%)' },
+            { id: 'sky-blue', name: 'Clear Sky', css: 'linear-gradient(135deg, #bae6fd 0%, #38bdf8 50%, #2563eb 100%)' },
+            { id: 'golden-hour', name: 'Golden Hour', css: 'linear-gradient(135deg, #fde047 0%, #f59e0b 50%, #b45309 100%)' },
+            { id: 'cherry-bomb', name: 'Cherry Red', css: 'linear-gradient(135deg, #ef4444 0%, #be123c 50%, #450a0a 100%)' },
+            { id: 'neon-night', name: 'Neon Night', css: 'linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #ec4899 100%)' },
+            { id: 'royal-purple', name: 'Royal Purple', css: 'linear-gradient(135deg, #581c87 0%, #7e22ce 50%, #1e1b4b 100%)' },
+            { id: 'forest-night', name: 'Forest Night', css: 'linear-gradient(135deg, #14532d 0%, #166534 45%, #052e16 100%)' },
+            { id: 'ice-frost', name: 'Ice Frost', css: 'linear-gradient(135deg, #f0f9ff 0%, #a5f3fc 50%, #818cf8 100%)' },
+            { id: 'cosmic-pink', name: 'Cosmic Pink', css: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #fb7185 100%)' },
+            { id: 'lime-pop', name: 'Lime Pop', css: 'linear-gradient(135deg, #d9f99d 0%, #84cc16 50%, #166534 100%)' },
+            { id: 'coral-reef', name: 'Coral Reef', css: 'linear-gradient(135deg, #fb7185 0%, #f97316 45%, #0ea5e9 100%)' },
+            { id: 'slate-steel', name: 'Steel Grey', css: 'linear-gradient(135deg, #94a3b8 0%, #475569 50%, #0f172a 100%)' },
+            { id: 'white-clean', name: 'Clean White', css: 'linear-gradient(135deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%)' },
+            { id: 'sunrise', name: 'Sunrise', css: 'linear-gradient(180deg, #1e3a8a 0%, #f472b6 55%, #fdba74 100%)' }
+        ];
+
+        /**
+         * Built-in wallpapers (generated SVGs, so they work offline and in exported pages)
+         */
+        const svgWrap = (defs, inner) => '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1600" viewBox="0 0 1000 1600" preserveAspectRatio="xMidYMid slice"><defs>' + defs + '<filter id="bl" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="90"/></filter></defs>' + inner + '</svg>';
+        const blob = (cx, cy, rx, ry, color, op) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${color}" opacity="${op}" filter="url(#bl)"/>`;
+        const lcg = (seed) => () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+        const stars = (n, seed) => { const r = lcg(seed); let o = ''; for (let i = 0; i < n; i++) { o += `<circle cx="${(r() * 1000).toFixed(0)}" cy="${(r() * 1600).toFixed(0)}" r="${(r() * 2.2 + 0.6).toFixed(1)}" fill="#fff" opacity="${(r() * 0.7 + 0.3).toFixed(2)}"/>`; } return o; };
+        const waves = (colors, baseY, gap) => colors.map((c, i) => { const y = baseY + i * gap; return `<path d="M0 ${y} C 200 ${y - 90}, 350 ${y + 90}, 520 ${y} S 850 ${y - 90}, 1000 ${y} L1000 1600 L0 1600 Z" fill="${c}" opacity="0.55"/>`; }).join('');
+        const WALLPAPER_DEFS = [
+            { name: 'Aurora', svg: svgWrap('<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050816"/><stop offset="1" stop-color="#0f172a"/></linearGradient>', '<rect width="1000" height="1600" fill="url(#g)"/>' + blob(250, 350, 320, 260, '#22c55e', 0.55) + blob(750, 550, 340, 240, '#06b6d4', 0.55) + blob(400, 900, 380, 260, '#7c3aed', 0.6) + blob(780, 1250, 300, 260, '#ec4899', 0.45)) },
+            { name: 'Starry Night', svg: svgWrap('<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#020617"/><stop offset="0.6" stop-color="#1e1b4b"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>', '<rect width="1000" height="1600" fill="url(#g)"/>' + blob(780, 300, 160, 160, '#e0e7ff', 0.55) + stars(160, 7) + '<circle cx="780" cy="300" r="46" fill="#f8fafc" opacity="0.95"/>') },
+            { name: 'Neon Mesh', svg: svgWrap('', '<rect width="1000" height="1600" fill="#0a0a1a"/>' + blob(200, 300, 300, 300, '#f0abfc', 0.65) + blob(820, 450, 280, 300, '#22d3ee', 0.6) + blob(300, 1000, 340, 300, '#3b82f6', 0.6) + blob(800, 1300, 300, 260, '#a3e635', 0.4)) },
+            { name: 'Sunset Dunes', svg: svgWrap('<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#312e81"/><stop offset="0.45" stop-color="#db2777"/><stop offset="0.75" stop-color="#fb923c"/><stop offset="1" stop-color="#fde68a"/></linearGradient>', '<rect width="1000" height="1600" fill="url(#g)"/><circle cx="500" cy="900" r="170" fill="#fef3c7" opacity="0.9"/><path d="M0 1100 Q 250 980 500 1100 T 1000 1050 L1000 1600 L0 1600Z" fill="#7c2d12" opacity="0.75"/><path d="M0 1300 Q 300 1180 600 1300 T 1000 1260 L1000 1600 L0 1600Z" fill="#431407" opacity="0.9"/>') },
+            { name: 'Ocean Waves', svg: svgWrap('<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="0.5" stop-color="#1d4ed8"/><stop offset="1" stop-color="#0b1437"/></linearGradient>', '<rect width="1000" height="1600" fill="url(#g)"/>' + waves(['#bae6fd', '#38bdf8', '#2563eb', '#1e3a8a', '#0b1437'], 700, 170)) },
+            { name: 'Rose Glow', svg: svgWrap('', '<rect width="1000" height="1600" fill="#3b0764"/>' + blob(220, 350, 320, 300, '#f9a8d4', 0.75) + blob(800, 700, 300, 320, '#fdba74', 0.6) + blob(300, 1150, 340, 300, '#c4b5fd', 0.7) + blob(780, 1400, 260, 240, '#fb7185', 0.55)) },
+            { name: 'Forest Mist', svg: svgWrap('<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ccfbf1"/><stop offset="0.5" stop-color="#14b8a6"/><stop offset="1" stop-color="#022c22"/></linearGradient>', '<rect width="1000" height="1600" fill="url(#g)"/>' + blob(500, 500, 420, 200, '#ecfeff', 0.5) + waves(['#5eead4', '#0f766e', '#064e3b', '#022c22'], 800, 200)) },
+            { name: 'Carbon Grid', svg: svgWrap('<pattern id="p" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#334155" stroke-width="1.5"/></pattern><radialGradient id="r" cx="0.5" cy="0.3" r="0.8"><stop offset="0" stop-color="#1e293b"/><stop offset="1" stop-color="#020617"/></radialGradient>', '<rect width="1000" height="1600" fill="url(#r)"/><rect width="1000" height="1600" fill="url(#p)" opacity="0.7"/>' + blob(500, 400, 300, 200, '#6366f1', 0.45)) }
+        ];
+        const WALLPAPERS = WALLPAPER_DEFS.map(w => ({ name: w.name, url: 'data:image/svg+xml;base64,' + btoa(w.svg) }));
+
+        /**
+         * Default Application State
+         */
+        const DEFAULT_STATE = {
+            profile: {
+                name: 'Alex Rivera',
+                bio: 'Digital Creator, UI Designer & Music Producer.\nBuilding aesthetic experiences on the web.',
+                avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+                verified: true,
+                textColor: '#ffffff'
+            },
+            background: {
+                type: 'gradient', // 'gradient' | 'solid' | 'image'
+                gradientCss: GRADIENT_PRESETS[0].css,
+                solidColor: '#0f172a',
+                imageUrl: WALLPAPERS[0].url,
+                blur: 0,
+                overlay: 20
+            },
+            buttonStyle: {
+                shape: 'rounded',   // 'rounded' | 'pill' | 'square'
+                variant: 'glass',   // 'glass' | 'solid' | 'outline'
+                bgColor: '#ffffff',
+                textColor: '#ffffff',
+                hover: 'lift'       // 'lift' | 'glow'
+            },
+            links: [
+                { id: 'lnk-1', platform: 'website', title: 'Personal Portfolio & Shop', url: 'https://example.com' },
+                { id: 'lnk-2', platform: 'instagram', title: 'Follow on Instagram', url: 'https://instagram.com' },
+                { id: 'lnk-3', platform: 'youtube', title: 'Latest Design Tutorials', url: 'https://youtube.com' },
+                { id: 'lnk-4', platform: 'discord', title: 'Join Our Creative Community', url: 'https://discord.com' },
+                { id: 'lnk-5', platform: 'email', title: 'Business & Collabs', url: 'mailto:hello@example.com' }
+            ]
+        };
+
+        // Load saved state from localStorage or fallback to default
+        let appState = loadState();
+        let isPreviewMode = false;
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('biolink_studio_state_v1');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    return {
+                        profile: { ...DEFAULT_STATE.profile, ...parsed.profile },
+                        background: { ...DEFAULT_STATE.background, ...parsed.background },
+                        buttonStyle: { ...DEFAULT_STATE.buttonStyle, ...parsed.buttonStyle },
+                        links: Array.isArray(parsed.links) ? parsed.links : DEFAULT_STATE.links
+                    };
+                }
+            } catch (e) {
+                console.warn('Could not read saved state:', e);
+            }
+            return JSON.parse(JSON.stringify(DEFAULT_STATE));
+        }
+
+        function saveState() {
+            if (typeof updateShareLabel === 'function') { try { updateShareLabel(); } catch (e) {} }
+            try {
+                localStorage.setItem('biolink_studio_state_v1', JSON.stringify(appState));
+            } catch (e) {
+                // Handle quota exceeded (e.g. very large uploaded images) gracefully
+                console.warn('LocalStorage quota warning:', e);
+            }
+        }
+
+        /**
+         * Initialize Studio UI & Live Preview
+         */
+        window.addEventListener('DOMContentLoaded', () => {
+            renderGradientPresets();
+            renderWallpaperPresets();
+            syncEditorInputs();
+            renderLinksEditor();
+            renderLivePreview();
+            lucide.createIcons();
+        });
+
+        /**
+         * Synchronize all editor form fields with current appState
+         */
+        function syncEditorInputs() {
+            // Profile
+            document.getElementById('input-name').value = appState.profile.name;
+            document.getElementById('input-bio').value = appState.profile.bio;
+            document.getElementById('input-avatar-url').value = appState.profile.avatarUrl.startsWith('data:') ? '' : appState.profile.avatarUrl;
+            document.getElementById('editor-avatar-preview').src = appState.profile.avatarUrl;
+            document.getElementById('input-text-color').value = appState.profile.textColor;
+            updateVerifiedToggleUI();
+
+            // Background
+            setBackgroundType(appState.background.type, false);
+            document.getElementById('input-bg-color').value = appState.background.solidColor;
+            document.getElementById('solid-color-hex').textContent = appState.background.solidColor;
+            document.getElementById('input-bg-image-url').value = appState.background.imageUrl.startsWith('data:') ? '' : appState.background.imageUrl;
+            document.getElementById('input-bg-blur').value = appState.background.blur;
+            document.getElementById('blur-value-label').textContent = `${appState.background.blur}px`;
+            document.getElementById('input-bg-overlay').value = appState.background.overlay;
+            document.getElementById('overlay-value-label').textContent = `${appState.background.overlay}%`;
+
+            // Button Styles
+            highlightOptionGroup('.btn-shape-opt', `btn-shape-${appState.buttonStyle.shape}`);
+            highlightOptionGroup('.btn-variant-opt', `btn-variant-${appState.buttonStyle.variant}`);
+            highlightOptionGroup('.btn-hover-opt', `btn-hover-${appState.buttonStyle.hover}`);
+            document.getElementById('input-btn-bg').value = appState.buttonStyle.bgColor;
+            document.getElementById('btn-bg-hex').textContent = appState.buttonStyle.bgColor;
+            document.getElementById('input-btn-text').value = appState.buttonStyle.textColor;
+            document.getElementById('btn-text-hex').textContent = appState.buttonStyle.textColor;
+        }
+
+        /**
+         * Tab Navigation inside Editor Panel
+         */
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'text-white', 'shadow');
+                btn.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-slate-800/60');
+            });
+
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow');
+            activeBtn.classList.remove('text-slate-400', 'hover:text-white', 'hover:bg-slate-800/60');
+        }
+
+        /**
+         * Profile Updaters
+         */
+        function updateProfile(field, value) {
+            appState.profile[field] = value;
+            if (field === 'avatarUrl') {
+                document.getElementById('editor-avatar-preview').src = value || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9Ijk1IiByPSI0MCIgZmlsbD0iIzQ3NTU2OSIvPjxlbGxpcHNlIGN4PSIxMjAiIGN5PSIyMDUiIHJ4PSI3MCIgcnk9IjU1IiBmaWxsPSIjNDc1NTY5Ii8+PC9zdmc+';
+            }
+            saveState();
+            renderLivePreview();
+        }
+
+        function setProfileTextColor(hex) {
+            document.getElementById('input-text-color').value = hex;
+            updateProfile('textColor', hex);
+        }
+
+        function toggleVerifiedBadge() {
+            appState.profile.verified = !appState.profile.verified;
+            updateVerifiedToggleUI();
+            saveState();
+            renderLivePreview();
+        }
+
+        function updateVerifiedToggleUI() {
+            const btn = document.getElementById('toggle-verified');
+            const dot = document.getElementById('toggle-verified-dot');
+            if (appState.profile.verified) {
+                btn.classList.remove('bg-slate-700');
+                btn.classList.add('bg-indigo-600');
+                dot.classList.add('translate-x-5');
+            } else {
+                btn.classList.add('bg-slate-700');
+                btn.classList.remove('bg-indigo-600');
+                dot.classList.remove('translate-x-5');
+            }
+        }
+
+        /**
+         * File Upload Handler (Avatar or Background Wallpaper)
+         */
+        function handleImageUpload(event, target) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                if (target === 'avatar') {
+                    appState.profile.avatarUrl = dataUrl;
+                    document.getElementById('editor-avatar-preview').src = dataUrl;
+                    document.getElementById('input-avatar-url').value = '';
+                    showToast('Profile picture updated!');
+                } else if (target === 'background') {
+                    appState.background.type = 'image';
+                    appState.background.imageUrl = dataUrl;
+                    document.getElementById('input-bg-image-url').value = '';
+                    setBackgroundType('image', false);
+                    showToast('Custom background uploaded!');
+                }
+                saveState();
+                renderLivePreview();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Background Controls
+         */
+        function renderGradientPresets() {
+            const container = document.getElementById('gradient-presets');
+            container.innerHTML = GRADIENT_PRESETS.map(preset => `
+                <button onclick="selectGradient('${preset.css}')" class="group relative h-14 rounded-xl overflow-hidden border border-white/15 hover:border-indigo-400 transition shadow-sm" style="background: ${preset.css}">
+                    <span class="absolute inset-x-0 bottom-0 bg-black/45 backdrop-blur-xs text-[10px] font-medium text-white py-1 px-1.5 truncate">
+                        ${preset.name}
+                    </span>
+                </button>
+            `).join('');
+        }
+
+        function setBackgroundType(type, shouldSave = true) {
+            appState.background.type = type;
+
+            // Update active button styling
+            document.querySelectorAll('.bg-type-btn').forEach(btn => {
+                btn.classList.remove('border-indigo-500', 'bg-indigo-500/15', 'text-indigo-300');
+                btn.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-400');
+            });
+            const activeBtn = document.getElementById(`bg-type-${type}`);
+            if (activeBtn) {
+                activeBtn.classList.add('border-indigo-500', 'bg-indigo-500/15', 'text-indigo-300');
+                activeBtn.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-400');
+            }
+
+            // Toggle sub-panels
+            document.getElementById('bg-controls-gradient').classList.toggle('hidden', type !== 'gradient');
+            document.getElementById('bg-controls-solid').classList.toggle('hidden', type !== 'solid');
+            document.getElementById('bg-controls-image').classList.toggle('hidden', type !== 'image');
+
+            if (shouldSave) {
+                saveState();
+                renderLivePreview();
+            }
+        }
+
+        function selectGradient(css) {
+            appState.background.type = 'gradient';
+            appState.background.gradientCss = css;
+            saveState();
+            renderLivePreview();
+        }
+
+        function setSampleWallpaper(url) {
+            appState.background.type = 'image';
+            appState.background.imageUrl = url;
+            document.getElementById('input-bg-image-url').value = url.startsWith('data:') ? '' : url;
+            saveState();
+            renderLivePreview();
+        }
+
+        function selectWallpaper(i) {
+            setBackgroundType('image', false);
+            setSampleWallpaper(WALLPAPERS[i].url);
+        }
+
+        function renderWallpaperPresets() {
+            const c = document.getElementById('wallpaper-presets');
+            if (!c) return;
+            c.innerHTML = WALLPAPERS.map((w, i) => `
+                <button type="button" onclick="selectWallpaper(${i})" title="${w.name}" class="relative h-20 rounded-xl overflow-hidden border border-slate-700 hover:border-indigo-400 transition">
+                    <img src="${w.url}" alt="${w.name}" class="w-full h-full object-cover">
+                    <span class="absolute inset-x-0 bottom-0 bg-black/55 text-[9px] font-medium text-white py-0.5 px-1 truncate">${w.name}</span>
+                </button>`).join('');
+        }
+
+        function updateBackground(field, value) {
+            appState.background[field] = value;
+            if (field === 'solidColor') {
+                document.getElementById('solid-color-hex').textContent = value;
+            } else if (field === 'blur') {
+                document.getElementById('blur-value-label').textContent = `${value}px`;
+            } else if (field === 'overlay') {
+                document.getElementById('overlay-value-label').textContent = `${value}%`;
+            }
+            saveState();
+            renderLivePreview();
+        }
+
+        /**
+         * Button Style Controls
+         */
+        function updateButtonStyle(field, value) {
+            appState.buttonStyle[field] = value;
+
+            if (field === 'shape') highlightOptionGroup('.btn-shape-opt', `btn-shape-${value}`);
+            if (field === 'variant') highlightOptionGroup('.btn-variant-opt', `btn-variant-${value}`);
+            if (field === 'hover') highlightOptionGroup('.btn-hover-opt', `btn-hover-${value}`);
+            if (field === 'bgColor') document.getElementById('btn-bg-hex').textContent = value;
+            if (field === 'textColor') document.getElementById('btn-text-hex').textContent = value;
+
+            saveState();
+            renderLivePreview();
+        }
+
+        function highlightOptionGroup(selector, activeId) {
+            document.querySelectorAll(selector).forEach(btn => {
+                btn.classList.remove('border-indigo-500', 'bg-indigo-500/15', 'text-indigo-300');
+                btn.classList.add('border-slate-800', 'bg-slate-950', 'text-slate-400');
+            });
+            const active = document.getElementById(activeId);
+            if (active) {
+                active.classList.add('border-indigo-500', 'bg-indigo-500/15', 'text-indigo-300');
+                active.classList.remove('border-slate-800', 'bg-slate-950', 'text-slate-400');
+            }
+        }
+
+        /**
+         * Links Management (Add, Edit, Delete, Reorder)
+         */
+        function renderLinksEditor() {
+            const container = document.getElementById('links-editor-list');
+
+            if (appState.links.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 px-4 rounded-2xl border border-dashed border-slate-800 text-slate-500 text-xs">
+                        No links yet. Click <strong>+ Add Link</strong> above to create your first button.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = appState.links.map((link, index) => {
+                const platformOptions = Object.entries(PLATFORMS).map(([key, info]) =>
+                    `<option value="${key}" ${link.platform === key ? 'selected' : ''}>${info.label}</option>`
+                ).join('');
+
+                return `
+                    <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/90 space-y-2.5 transition hover:border-slate-700">
+                        <div class="flex items-center justify-between gap-2">
+                            <!-- Platform Selector -->
+                            <div class="flex items-center gap-2 flex-1">
+                                <span class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 shrink-0">
+                                    ${PLATFORMS[link.platform]?.svg || PLATFORMS.website.svg}
+                                </span>
+                                <select onchange="updateLink(${index}, 'platform', this.value)" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500">
+                                    ${platformOptions}
+                                </select>
+                            </div>
+
+                            <!-- Reorder & Delete Actions -->
+                            <div class="flex items-center gap-1">
+                                <button onclick="moveLink(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition" title="Move Up">
+                                    <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="moveLink(${index}, 1)" ${index === appState.links.length - 1 ? 'disabled' : ''} class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none transition" title="Move Down">
+                                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteLink(${index})" class="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition" title="Delete Link">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Link Label & URL -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input type="text" value="${escapeHtml(link.title)}" placeholder="Button Title" oninput="updateLink(${index}, 'title', this.value)" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                            <input type="text" value="${escapeHtml(link.url)}" placeholder="https://..." oninput="updateLink(${index}, 'url', this.value)" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function addNewLink() {
+            appState.links.push({
+                id: 'lnk-' + Date.now(),
+                platform: 'website',
+                title: 'New Custom Link',
+                url: 'https://example.com'
+            });
+            saveState();
+            renderLinksEditor();
+            renderLivePreview();
+            showToast('New link added');
+        }
+
+        function updateLink(index, field, value) {
+            appState.links[index][field] = value;
+            saveState();
+            if (field === 'platform') {
+                renderLinksEditor();
+            }
+            renderLivePreview();
+        }
+
+        function moveLink(index, direction) {
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= appState.links.length) return;
+            const temp = appState.links[index];
+            appState.links[index] = appState.links[targetIndex];
+            appState.links[targetIndex] = temp;
+            saveState();
+            renderLinksEditor();
+            renderLivePreview();
+        }
+
+        function deleteLink(index) {
+            appState.links.splice(index, 1);
+            saveState();
+            renderLinksEditor();
+            renderLivePreview();
+            showToast('Link removed');
+        }
+
+        /**
+         * Helper: Convert Hex Color to RGBA
+         */
+        function hexToRgba(hex, alpha) {
+            const clean = hex.replace('#', '');
+            const bigint = parseInt(clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean, 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        /**
+         * Build Inline Style & Classes for Link Buttons
+         */
+        function getComputedButtonPresentation() {
+            const { shape, variant, bgColor, textColor, hover } = appState.buttonStyle;
+
+            const radiusClass = shape === 'pill' ? 'rounded-full' : shape === 'square' ? 'rounded-none' : 'rounded-2xl';
+            const hoverClass = hover === 'glow'
+                ? 'hover:shadow-[0_0_25px_rgba(255,255,255,0.35)] hover:brightness-110'
+                : 'hover:-translate-y-0.5 hover:scale-[1.015] hover:shadow-xl';
+
+            let inlineStyle = `color: ${textColor}; `;
+            let variantClass = '';
+
+            if (variant === 'glass') {
+                inlineStyle += `background-color: ${hexToRgba(bgColor, 0.14)}; border: 1px solid ${hexToRgba(bgColor, 0.28)};`;
+                variantClass = 'backdrop-blur-md shadow-lg';
+            } else if (variant === 'solid') {
+                inlineStyle += `background-color: ${bgColor}; border: 1px solid ${bgColor};`;
+                variantClass = 'shadow-md';
+            } else if (variant === 'outline') {
+                inlineStyle += `background-color: transparent; border: 2px solid ${bgColor};`;
+                variantClass = '';
+            }
+
+            return { radiusClass, hoverClass, variantClass, inlineStyle };
+        }
+
+        /**
+         * Render the Live Preview Canvas
+         */
+        function renderLivePreview() {
+            // 1. Background Layer
+            const bgLayer = document.getElementById('live-bg-layer');
+            const overlayLayer = document.getElementById('live-overlay-layer');
+            const { type, gradientCss, solidColor, imageUrl, blur, overlay } = appState.background;
+
+            if (type === 'gradient') {
+                bgLayer.style.backgroundImage = gradientCss;
+                bgLayer.style.backgroundColor = 'transparent';
+            } else if (type === 'solid') {
+                bgLayer.style.backgroundImage = 'none';
+                bgLayer.style.backgroundColor = solidColor;
+            } else if (type === 'image') {
+                bgLayer.style.backgroundImage = imageUrl ? `url('${imageUrl}')` : gradientCss;
+                bgLayer.style.backgroundColor = '#0f172a';
+            }
+
+            bgLayer.style.filter = `blur(${blur}px)`;
+            overlayLayer.style.opacity = (overlay / 100).toString();
+
+            // 2. Profile Identity
+            const liveAvatar = document.getElementById('live-avatar');
+            const liveName = document.getElementById('live-name');
+            const liveBio = document.getElementById('live-bio');
+            const liveVerified = document.getElementById('live-verified-badge');
+
+            liveAvatar.src = appState.profile.avatarUrl || 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9Ijk1IiByPSI0MCIgZmlsbD0iIzQ3NTU2OSIvPjxlbGxpcHNlIGN4PSIxMjAiIGN5PSIyMDUiIHJ4PSI3MCIgcnk9IjU1IiBmaWxsPSIjNDc1NTY5Ii8+PC9zdmc+';
+            liveName.textContent = appState.profile.name || 'Your Name';
+            liveName.style.color = appState.profile.textColor;
+            liveBio.textContent = appState.profile.bio;
+            liveBio.style.color = appState.profile.textColor;
+            liveVerified.style.display = appState.profile.verified ? 'inline-flex' : 'none';
+
+            // 3. Links Stack
+            const linksContainer = document.getElementById('live-links-container');
+            const { radiusClass, hoverClass, variantClass, inlineStyle } = getComputedButtonPresentation();
+
+            linksContainer.innerHTML = appState.links.map(link => {
+                const platform = PLATFORMS[link.platform] || PLATFORMS.website;
+                const safeHref = formatUrl(link.url);
+
+                return `
+                    <a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer"
+                       style="${inlineStyle}"
+                       class="group w-full px-5 py-3.5 ${radiusClass} ${variantClass} ${hoverClass} flex items-center justify-between transition-all duration-200 cursor-pointer">
+                        <span class="w-8 h-8 flex items-center justify-center shrink-0 opacity-95 group-hover:scale-110 transition-transform">
+                            ${platform.svg}
+                        </span>
+                        <span class="font-semibold text-sm sm:text-[15px] tracking-tight text-center px-2 truncate">
+                            ${escapeHtml(link.title || platform.label)}
+                        </span>
+                        <span class="w-8 h-8 flex items-center justify-center shrink-0 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                        </span>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Toggle Preview Mode (Hides editor and expands bio page to full screen)
+         */
+        function togglePreviewMode() {
+            isPreviewMode = !isPreviewMode;
+
+            const header = document.getElementById('studio-header');
+            const editor = document.getElementById('editor-panel');
+            const exitBtn = document.getElementById('exit-preview-btn');
+            const workspace = document.getElementById('workspace');
+            const previewStage = document.getElementById('preview-stage');
+            const previewFrame = document.getElementById('preview-frame');
+
+            if (isPreviewMode) {
+                header.classList.add('hidden');
+                editor.classList.add('hidden');
+                exitBtn.classList.remove('hidden');
+
+                workspace.classList.remove('max-w-7xl', 'lg:grid-cols-12');
+                previewStage.classList.remove('lg:col-span-7', 'xl:col-span-7', 'p-4', 'sm:p-8', 'lg:p-10');
+                previewStage.classList.add('min-h-screen', 'p-0');
+
+                previewFrame.classList.remove('max-w-md', 'rounded-[2.25rem]', 'border', 'border-white/10', 'min-h-[660px]');
+                previewFrame.classList.add('max-w-none', 'min-h-screen', 'rounded-none');
+            } else {
+                header.classList.remove('hidden');
+                editor.classList.remove('hidden');
+                exitBtn.classList.add('hidden');
+
+                workspace.classList.add('max-w-7xl', 'lg:grid-cols-12');
+                previewStage.classList.add('lg:col-span-7', 'xl:col-span-7', 'p-4', 'sm:p-8', 'lg:p-10');
+                previewStage.classList.remove('min-h-screen', 'p-0');
+
+                previewFrame.classList.add('max-w-md', 'rounded-[2.25rem]', 'border', 'border-white/10', 'min-h-[660px]');
+                previewFrame.classList.remove('max-w-none', 'min-h-screen', 'rounded-none');
+            }
+        }
+
+        /**
+         * Export Standalone Single-File HTML Website
+         */
+        function buildStandaloneDocument() {
+            const { profile, background, links } = appState;
+            const { radiusClass, hoverClass, variantClass, inlineStyle } = getComputedButtonPresentation();
+
+            let bgInlineCss = '';
+            if (background.type === 'gradient') {
+                bgInlineCss = `background-image: ${background.gradientCss};`;
+            } else if (background.type === 'solid') {
+                bgInlineCss = `background-color: ${background.solidColor};`;
+            } else if (background.type === 'image') {
+                bgInlineCss = `background-image: url('${background.imageUrl}'); background-color: #0f172a;`;
+            }
+
+            const linksHtml = links.map(link => {
+                const platform = PLATFORMS[link.platform] || PLATFORMS.website;
+                const safeHref = formatUrl(link.url);
+                return `
+            <a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer"
+               style="${inlineStyle}"
+               class="group w-full px-5 py-4 ${radiusClass} ${variantClass} ${hoverClass} flex items-center justify-between transition-all duration-200">
+                <span class="w-8 h-8 flex items-center justify-center shrink-0 opacity-95 group-hover:scale-110 transition-transform">
+                    ${platform.svg}
+                </span>
+                <span class="font-semibold text-[15px] tracking-tight text-center px-3 truncate">
+                    ${escapeHtml(link.title || platform.label)}
+                </span>
+                <span class="w-8 h-8 flex items-center justify-center shrink-0 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+                </span>
+            </a>`;
+            }).join('\n');
+
+            const verifiedHtml = profile.verified ? `
+                <span class="inline-flex items-center justify-center text-sky-400" title="Verified">
+                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1.9 14.7L6 12.6l1.5-1.5 2.6 2.6 6.4-6.4 1.5 1.5-7.9 7.9z"/>
+                    </svg>
+                </span>` : '';
+
+            const standaloneDocument = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtml(profile.name)} — Links</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"><\/script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden antialiased selection:bg-indigo-500 selection:text-white">
+    <!-- Fixed Background Layer -->
+    <div class="fixed inset-0 bg-cover bg-center scale-105 -z-20" style="${bgInlineCss} filter: blur(${background.blur}px);"></div>
+    <!-- Dark Readability Overlay -->
+    <div class="fixed inset-0 bg-black -z-10" style="opacity: ${background.overlay / 100};"></div>
+
+    <!-- Main Bio Container -->
+    <main class="min-h-screen w-full max-w-lg mx-auto px-5 py-14 sm:py-20 flex flex-col items-center justify-between">
+        <div class="w-full flex flex-col items-center text-center">
+            <a id="pv-link" href="#" target="_blank" rel="noopener" class="w-full mb-8 flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-md px-4 py-3 shadow-lg text-left">
+                <span id="pv-label" class="truncate text-base font-medium" style="color:#4a6ee0">my page</span>
+                <svg class="w-5 h-5 shrink-0 text-slate-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>
+            </a>
+            <script>(function(){var a=document.getElementById('pv-link'),l=document.getElementById('pv-label');a.href=location.href;var t=location.host+location.pathname;if(t.slice(-11)==='/index.html'){t=t.slice(0,-11);}if(t.slice(-1)==='/'){t=t.slice(0,-1);}l.textContent=t||'my page';})();<\/script>
+            <img src="${escapeHtml(profile.avatarUrl)}" alt="${escapeHtml(profile.name)}"
+                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iMjQwIj48cmVjdCB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjEyMCIgY3k9Ijk1IiByPSI0MCIgZmlsbD0iIzQ3NTU2OSIvPjxlbGxpcHNlIGN4PSIxMjAiIGN5PSIyMDUiIHJ4PSI3MCIgcnk9IjU1IiBmaWxsPSIjNDc1NTY5Ii8+PC9zdmc+'"
+                 class="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-2xl ring-4 ring-white/20 mb-4">
+
+            <div class="flex items-center justify-center gap-1.5 mb-2">
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight" style="color: ${profile.textColor};">
+                    ${escapeHtml(profile.name)}
+                </h1>
+                ${verifiedHtml}
+            </div>
+
+            <p class="text-sm sm:text-base opacity-90 max-w-md leading-relaxed mb-8 whitespace-pre-line" style="color: ${profile.textColor};">
+                ${escapeHtml(profile.bio)}
+            </p>
+
+            <div class="w-full space-y-3.5">
+${linksHtml}
+            </div>
+        </div>
+
+        <footer class="mt-14 pt-4 text-center">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-black/25 backdrop-blur-md text-white/75 border border-white/10">
+                solo.bio
+            </span>
+            <button onclick="var b=this;navigator.clipboard.writeText(location.href).then(function(){b.textContent='Link copied ✓';setTimeout(function(){b.textContent='Copy page link'},2000)})" class="mt-3 block mx-auto px-4 py-1.5 rounded-full text-xs font-medium bg-white/15 hover:bg-white/25 backdrop-blur-md text-white border border-white/20 transition">Copy page link</button>
+        </footer>
+    </main>
+</body>
+</html>`;
+
+            return standaloneDocument;
+        }
+
+        function exportStandaloneHTML() {
+            const standaloneDocument = buildStandaloneDocument();
+            const profile = appState.profile;
+            const blob = new Blob([standaloneDocument], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const slug = (profile.name || 'my-bio-page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            a.href = url;
+            a.download = `${slug || 'index'}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('Standalone HTML downloaded! Ready to host.');
+        }
+
+        /**
+         * Reset to Default Template
+         */
+        function resetToDefaults() {
+            appState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+            saveState();
+            syncEditorInputs();
+            renderLinksEditor();
+            renderLivePreview();
+            showToast('Reset to default template');
+        }
+
+        /**
+         * Utility Functions
+         */
+        function formatUrl(url) {
+            if (!url) return '#';
+            const trimmed = url.trim();
+            if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) return trimmed;
+            return 'https://' + trimmed;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'px-4 py-2.5 rounded-xl bg-slate-900/95 text-white text-xs font-medium border border-indigo-500/40 shadow-xl backdrop-blur-md flex items-center gap-2 transition-all duration-300 translate-y-2 opacity-0';
+            toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-indigo-400"></span><span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+        // ---- Preview link bar ----
+        function normalizeShareUrl(v) {
+            v = (v || '').trim();
+            if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+            return v;
+        }
+        function getShareUrl() {
+            try { return localStorage.getItem('biolink_share_url') || ''; } catch (e) { return ''; }
+        }
+        function updateShareLabel() {
+            const label = document.getElementById('share-link-label');
+            if (!label) return;
+            const saved = getShareUrl();
+            if (saved) {
+                label.textContent = saved.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+            } else {
+                const slug = ((appState.profile && appState.profile.name) || 'my-page').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                label.textContent = 'preview/' + (slug || 'my-page');
+            }
+        }
+        function toggleShareEdit(on) {
+            const input = document.getElementById('share-url-input');
+            const btn = document.getElementById('share-link-btn');
+            if (on) {
+                input.value = getShareUrl();
+                btn.classList.add('hidden');
+                input.classList.remove('hidden');
+                input.focus();
+            } else {
+                if (input.classList.contains('hidden')) return;
+                const v = normalizeShareUrl(input.value);
+                try { localStorage.setItem('biolink_share_url', v); } catch (e) {}
+                input.classList.add('hidden');
+                btn.classList.remove('hidden');
+                updateShareLabel();
+                if (v) showToast('Link saved');
+            }
+        }
+        function openPreviewLink() {
+            const live = getShareUrl();
+            if (live) { window.open(live, '_blank', 'noopener'); return; }
+            let w = null;
+            try {
+                const blob = new Blob([buildStandaloneDocument()], { type: 'text/html;charset=utf-8' });
+                w = window.open(URL.createObjectURL(blob), '_blank');
+            } catch (e) {}
+            if (!w) togglePreviewMode();
+            else showToast('Only you can see this preview. Tap the pencil and paste your live link so viewers can open it.');
+        }
+        updateShareLabel();
+    </script>
+</body>
+</html>
